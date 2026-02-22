@@ -11,7 +11,7 @@
 		"homepage": "https://anonbotpl.github.io/",
 		"sources": "https://github.com/AnonBOTpl/Fabric-Radio-Mod"
 	},
-	"license": "CC0-1.0",
+	"license": "MIT",
 	"icon": "assets/radio-mod/icon.png",
 	"environment": "client",
 	"entrypoints": {
