@@ -2,10 +2,8 @@
 
 A fully-featured, client-side Internet Radio mod for Minecraft Fabric (1.21.4). Listen to thousands of real-world radio stations directly in your game without any external software!
 
-<img width="791" height="1009" alt="{747C47CD-33E4-483F-A75F-1C3EF43E8A73}" src="https://github.com/user-attachments/assets/26e1a585-cc10-4e44-b3e6-2035f8442566" />
-
-
-
+<img width="730" height="1008" alt="{5C8BDC29-4EE0-498A-BAEF-88BEA21D5EFA}" src="https://github.com/user-attachments/assets/4f4aa268-40eb-4f7c-8bab-cb3784b14d20" />
+                                                                     
 
 ## ✨ Features
 * **Live Station Search:** Powered by the free *Radio Browser API*, giving you access to thousands of stations globally.
