@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "radio-mod",
+	"version": "1.0.0",
+	"name": "Radio Mod",
+	"description": "A fully-featured internet radio mod with a built-in player, live station searching, metadata toasts, and favorites system.",
+	"authors": [
+		"AnonBOT"
+	],
+	"contact": {
+		"homepage": "https://anonbotpl.github.io/",
+		"sources": "https://github.com/AnonBOTpl/Fabric-Radio-Mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/radio-mod/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"net.anonbot.radiomod.RadioModClient"
+		],
+		"modmenu": [
+			"net.anonbot.radiomod.RadioModMenuApi"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
