@@ -23,6 +23,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -38,7 +39,8 @@ public class RadioScreen extends Screen {
 
     boolean showFavoritesMode = false;
 
-    private record FilterOption(String name, String value) {}
+    private record FilterOption(String name, String value) {
+    }
 
     private static final FilterOption[] COUNTRIES = {
             new FilterOption(RadioModClient.t("Cały Świat", "Worldwide"), ""),
@@ -72,10 +74,12 @@ public class RadioScreen extends Screen {
         super.init();
         int centerX = this.width / 2;
 
-        this.searchBox = new EditBox(this.font, centerX - 150, 30, 140, 20, RadioModClient.tc("Szukaj stacji...", "Search stations..."));
+        this.searchBox = new EditBox(this.font, centerX - 150, 30, 140, 20,
+                RadioModClient.tc("Szukaj stacji...", "Search stations..."));
         this.addRenderableWidget(this.searchBox);
 
-        this.searchButton = Button.builder(RadioModClient.tc("Szukaj", "Search"), button -> performSearch(this.searchBox.getValue()))
+        this.searchButton = Button
+                .builder(RadioModClient.tc("Szukaj", "Search"), button -> performSearch(this.searchBox.getValue()))
                 .bounds(centerX - 5, 30, 70, 20).build();
         this.addRenderableWidget(this.searchButton);
 
@@ -83,22 +87,28 @@ public class RadioScreen extends Screen {
             showFavoritesMode = !showFavoritesMode;
             if (showFavoritesMode) {
                 button.setMessage(RadioModClient.tc("🔍 Szukaj", "🔍 Search"));
-                searchBox.visible = false; searchButton.visible = false;
-                countryDropdown.visible = false; genreDropdown.visible = false;
+                searchBox.visible = false;
+                searchButton.visible = false;
+                countryDropdown.visible = false;
+                genreDropdown.visible = false;
                 loadFavorites();
             } else {
                 button.setMessage(RadioModClient.tc("★ Ulubione", "★ Favorites"));
-                searchBox.visible = true; searchButton.visible = true;
-                countryDropdown.visible = true; genreDropdown.visible = true;
+                searchBox.visible = true;
+                searchButton.visible = true;
+                countryDropdown.visible = true;
+                genreDropdown.visible = true;
                 performSearch(searchBox.getValue());
             }
         }).bounds(centerX + 70, 30, 80, 20).build());
 
         // DOMYŚLNY INDEKS TO 0 ("Cały Świat")
-        this.countryDropdown = new DropdownWidget(centerX - 150, 55, 145, 20, RadioModClient.t("Kraj: ", "Country: "), COUNTRIES, 0, () -> performSearch(searchBox.getValue()));
+        this.countryDropdown = new DropdownWidget(centerX - 150, 55, 145, 20, RadioModClient.t("Kraj: ", "Country: "),
+                COUNTRIES, 0, () -> performSearch(searchBox.getValue()));
         this.addRenderableWidget(this.countryDropdown);
 
-        this.genreDropdown = new DropdownWidget(centerX + 5, 55, 145, 20, RadioModClient.t("Gatunek: ", "Genre: "), GENRES, 0, () -> performSearch(searchBox.getValue()));
+        this.genreDropdown = new DropdownWidget(centerX + 5, 55, 145, 20, RadioModClient.t("Gatunek: ", "Genre: "),
+                GENRES, 0, () -> performSearch(searchBox.getValue()));
         this.addRenderableWidget(this.genreDropdown);
 
         this.listWidget = new StationListWidget(this.minecraft, this.width, this.height - 165, 85, 25);
@@ -106,23 +116,41 @@ public class RadioScreen extends Screen {
 
         performSearch("");
 
-        int bottomButtonsY = this.height - 50;
+        int bottomButtonsY = this.height - 52;
+        int bW = 100; // szerokosc przycisku
+        int bGap = 5; // odstep miedzy przyciskami
+        int totalW = bW * 3 + bGap * 2; // 3 przyciski w rzedzie
+        int bStartX = centerX - totalW / 2;
 
-        this.addRenderableWidget(Button.builder(RadioModClient.tc("⏹ Wyłącz Radio", "⏹ Stop Radio"), button -> modClient.stopRadio())
-                .bounds(centerX - 155, bottomButtonsY, 150, 20).build());
+        // Rzad 1: Stop Radio | Historia | Volume
+        this.addRenderableWidget(
+                Button.builder(RadioModClient.tc("\u23f9 Wylacz Radio", "\u23f9 Stop Radio"), button -> modClient.stopRadio())
+                        .bounds(bStartX, bottomButtonsY, bW, 20).build());
 
-        this.addRenderableWidget(new VolumeSlider(centerX + 5, bottomButtonsY, 150, 20, Component.empty(), modClient.getVolume()));
+        this.addRenderableWidget(
+                Button.builder(RadioModClient.tc("\uD83C\uDFB5 Historia", "\uD83C\uDFB5 History"), button -> {
+                    if (this.minecraft != null)
+                        this.minecraft.setScreen(new RadioHistoryScreen(modClient, this));
+                }).bounds(bStartX + bW + bGap, bottomButtonsY, bW, 20).build());
 
-        this.addRenderableWidget(Button.builder(RadioModClient.tc("⚙ Ustawienia", "⚙ Settings"), button -> {
-            if (this.minecraft != null) this.minecraft.setScreen(new RadioSettingsScreen(modClient, this));
-        }).bounds(centerX - 155, bottomButtonsY + 25, 150, 20).build());
+        this.addRenderableWidget(
+                new VolumeSlider(bStartX + (bW + bGap) * 2, bottomButtonsY, bW, 20, Component.empty(), modClient.getVolume()));
+
+        // Rzad 2: Ustawienia | Zamknij
+        int bW2 = (totalW - bGap) / 2;
+        this.addRenderableWidget(Button.builder(RadioModClient.tc("\u2699 Ustawienia", "\u2699 Settings"), button -> {
+            if (this.minecraft != null)
+                this.minecraft.setScreen(new RadioSettingsScreen(modClient, this));
+        }).bounds(bStartX, bottomButtonsY + 25, bW2, 20).build());
 
         this.addRenderableWidget(Button.builder(RadioModClient.tc("Zamknij Menu", "Close Menu"), button -> {
-            if (this.minecraft != null) this.minecraft.setScreen(null);
-        }).bounds(centerX + 5, bottomButtonsY + 25, 150, 20).build());
+            if (this.minecraft != null)
+                this.minecraft.setScreen(null);
+        }).bounds(bStartX + bW2 + bGap, bottomButtonsY + 25, bW2, 20).build());
     }
 
-    private void drawMarqueeText(GuiGraphics guiGraphics, String text, int x, int y, int width, int color, boolean isHovered) {
+    private void drawMarqueeText(GuiGraphics guiGraphics, String text, int x, int y, int width, int color,
+                                 boolean isHovered) {
         int textWidth = this.font.width(text);
         if (textWidth <= width) {
             guiGraphics.drawString(this.font, text, x, y, color, false);
@@ -134,7 +162,8 @@ public class RadioScreen extends Screen {
                 int totalScroll = overflow + 100;
                 int offset = (int) ((time * speed) % (totalScroll * 2));
                 int scrollX = offset;
-                if (offset > totalScroll) scrollX = (totalScroll * 2) - offset;
+                if (offset > totalScroll)
+                    scrollX = (totalScroll * 2) - offset;
                 scrollX = Math.max(0, Math.min(scrollX, overflow));
                 guiGraphics.enableScissor(x, y, x + width, y + this.font.lineHeight);
                 guiGraphics.drawString(this.font, text, x - scrollX, y, color, false);
@@ -151,30 +180,52 @@ public class RadioScreen extends Screen {
         listWidget.addStation(RadioModClient.t("Pobieranie stacji...", "Downloading stations..."), "", "");
         CompletableFuture.runAsync(() -> {
             try {
-                String apiUrl = "https://de1.api.radio-browser.info/json/stations/search?limit=50&hidebroken=true&order=clickcount&reverse=true&codec=MP3";
+                // POPRAWKA: "all.api" to load-balanced endpoint (nie jeden serwer)
+                String apiUrl = "https://all.api.radio-browser.info/json/stations/search?limit=50&hidebroken=true&order=clickcount&reverse=true&codec=MP3";
 
-                FilterOption currentCountry = this.countryDropdown != null ? this.countryDropdown.getSelected() : COUNTRIES[0];
+                FilterOption currentCountry = this.countryDropdown != null ? this.countryDropdown.getSelected()
+                        : COUNTRIES[0];
                 FilterOption currentGenre = this.genreDropdown != null ? this.genreDropdown.getSelected() : GENRES[0];
 
-                if (!currentCountry.value().isEmpty()) apiUrl += "&countrycode=" + currentCountry.value();
-                if (!currentGenre.value().isEmpty()) apiUrl += "&tag=" + URLEncoder.encode(currentGenre.value(), StandardCharsets.UTF_8);
-                if (!query.trim().isEmpty()) apiUrl += "&name=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
+                if (!currentCountry.value().isEmpty())
+                    apiUrl += "&countrycode=" + currentCountry.value();
+                if (!currentGenre.value().isEmpty())
+                    apiUrl += "&tag=" + URLEncoder.encode(currentGenre.value(), StandardCharsets.UTF_8);
+                if (!query.trim().isEmpty())
+                    apiUrl += "&name=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
-                try (HttpClient client = HttpClient.newHttpClient()) {
-                    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(apiUrl)).header("User-Agent", "MinecraftRadioMod/1.0").GET().build();
+                // POPRAWKA: Dodano timeout 10s – bez tego "Pobieranie stacji..." mogło wisieć w
+                // nieskończoność
+                try (HttpClient client = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(10))
+                        .build()) {
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(apiUrl))
+                            .timeout(Duration.ofSeconds(10))
+                            .header("User-Agent", "MinecraftRadioMod/1.0")
+                            .GET()
+                            .build();
                     HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                     JsonArray array = JsonParser.parseString(response.body()).getAsJsonArray();
 
                     Minecraft.getInstance().execute(() -> {
                         listWidget.clearStations();
-                        if (array.isEmpty()) listWidget.addStation(RadioModClient.t("Brak wyników.", "No results found."), "", "");
+                        if (array.isEmpty())
+                            listWidget.addStation(RadioModClient.t("Brak wyników.", "No results found."), "", "");
                         else {
                             for (JsonElement element : array) {
                                 JsonObject obj = element.getAsJsonObject();
-                                String stationName = obj.has("name") && !obj.get("name").isJsonNull() ? obj.get("name").getAsString().trim() : "Nieznana Stacja";
-                                String streamUrl = obj.has("url_resolved") && !obj.get("url_resolved").isJsonNull() ? obj.get("url_resolved").getAsString() : "";
-                                String faviconUrl = obj.has("favicon") && !obj.get("favicon").isJsonNull() ? obj.get("favicon").getAsString() : "";
-                                if (!streamUrl.isEmpty()) listWidget.addStation(stationName, streamUrl, faviconUrl);
+                                String stationName = obj.has("name") && !obj.get("name").isJsonNull()
+                                        ? obj.get("name").getAsString().trim()
+                                        : "Nieznana Stacja";
+                                String streamUrl = obj.has("url_resolved") && !obj.get("url_resolved").isJsonNull()
+                                        ? obj.get("url_resolved").getAsString()
+                                        : "";
+                                String faviconUrl = obj.has("favicon") && !obj.get("favicon").isJsonNull()
+                                        ? obj.get("favicon").getAsString()
+                                        : "";
+                                if (!streamUrl.isEmpty())
+                                    listWidget.addStation(stationName, streamUrl, faviconUrl);
                             }
                         }
                     });
@@ -193,9 +244,11 @@ public class RadioScreen extends Screen {
         List<RadioModClient.FavoriteStation> favs = modClient.getFavorites();
         if (favs.isEmpty()) {
             listWidget.addStation(RadioModClient.t("Brak ulubionych.", "No favorites yet."), "", "");
-            listWidget.addStation(RadioModClient.t("Kliknij gwiazdkę [☆] przy stacji, aby ją dodać!", "Click the star [☆] to add one!"), "", "");
-        }
-        else for (RadioModClient.FavoriteStation fs : favs) listWidget.addStation(fs.name, fs.url, fs.favicon);
+            listWidget.addStation(RadioModClient.t("Kliknij gwiazdkę [☆] przy stacji, aby ją dodać!",
+                    "Click the star [☆] to add one!"), "", "");
+        } else
+            for (RadioModClient.FavoriteStation fs : favs)
+                listWidget.addStation(fs.name, fs.url, fs.favicon);
     }
 
     @Override
@@ -203,7 +256,8 @@ public class RadioScreen extends Screen {
         super.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        String titleText = showFavoritesMode ? RadioModClient.t("Moje Ulubione Stacje", "My Favorite Stations") : RadioModClient.t("Menu Radia Internetowego", "Internet Radio Menu");
+        String titleText = showFavoritesMode ? RadioModClient.t("Moje Ulubione Stacje", "My Favorite Stations")
+                : RadioModClient.t("Menu Radia Internetowego", "Internet Radio Menu");
         guiGraphics.drawCenteredString(this.font, titleText, this.width / 2, 10, 0xFFFFFF);
 
         String currentSong = modClient.getLastSongName();
@@ -220,27 +274,48 @@ public class RadioScreen extends Screen {
             guiGraphics.fill(barX, barY, barX + 1, barY + barHeight, 0xFF555555);
             guiGraphics.fill(barX + barWidth - 1, barY, barX + barWidth, barY + barHeight, 0xFF555555);
 
+            // Okladka piosenki po lewej stronie paska
+            String artworkUrl = modClient.getCurrentArtworkUrl();
+            int iconSize = 45;
+            if (artworkUrl != null && !artworkUrl.isEmpty()) {
+                ResourceLocation artIcon = RadioModClient.getIcon(artworkUrl);
+                ResourceLocation displayIcon = artIcon != null ? artIcon : RadioModClient.FALLBACK_ICON;
+                guiGraphics.fill(barX - iconSize - 4, barY, barX - 2, barY + iconSize, 0xAA000000);
+                guiGraphics.fill(barX - iconSize - 4, barY, barX - 2, barY + 1, 0xFF555555);
+                guiGraphics.fill(barX - iconSize - 4, barY + iconSize - 1, barX - 2, barY + iconSize, 0xFF555555);
+                guiGraphics.fill(barX - iconSize - 4, barY, barX - iconSize - 3, barY + iconSize, 0xFF555555);
+                guiGraphics.fill(barX - 3, barY, barX - 2, barY + iconSize, 0xFF555555);
+                guiGraphics.blit(RenderType::guiTextured, displayIcon, barX - iconSize - 3, barY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+            }
             int textY = barY + (barHeight - this.font.lineHeight) / 2;
             drawMarqueeText(guiGraphics, songText, barX + 5, textY, barWidth - 10, 0x55FF55, true);
         }
 
         if (!showFavoritesMode) {
-            if (countryDropdown != null) countryDropdown.renderPopup(guiGraphics, mouseX, mouseY);
-            if (genreDropdown != null) genreDropdown.renderPopup(guiGraphics, mouseX, mouseY);
+            if (countryDropdown != null)
+                countryDropdown.renderPopup(guiGraphics, mouseX, mouseY);
+            if (genreDropdown != null)
+                genreDropdown.renderPopup(guiGraphics, mouseX, mouseY);
         }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!showFavoritesMode) {
-            if (countryDropdown != null && countryDropdown.isOpen) if (countryDropdown.handlePopupClick(mouseX, mouseY, button)) return true;
-            if (genreDropdown != null && genreDropdown.isOpen) if (genreDropdown.handlePopupClick(mouseX, mouseY, button)) return true;
+            if (countryDropdown != null && countryDropdown.isOpen)
+                if (countryDropdown.handlePopupClick(mouseX, mouseY, button))
+                    return true;
+            if (genreDropdown != null && genreDropdown.isOpen)
+                if (genreDropdown.handlePopupClick(mouseX, mouseY, button))
+                    return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean isPauseScreen() { return false; }
+    public boolean isPauseScreen() {
+        return false;
+    }
 
     private class DropdownWidget extends AbstractButton {
         private final String prefix;
@@ -249,25 +324,37 @@ public class RadioScreen extends Screen {
         public boolean isOpen = false;
         private final Runnable onChange;
 
-        public DropdownWidget(int x, int y, int width, int height, String prefix, FilterOption[] options, int initialIndex, Runnable onChange) {
+        public DropdownWidget(int x, int y, int width, int height, String prefix, FilterOption[] options,
+                              int initialIndex, Runnable onChange) {
             super(x, y, width, height, Component.literal(prefix + options[initialIndex].name() + " ▼"));
-            this.prefix = prefix; this.options = options; this.selectedIndex = initialIndex; this.onChange = onChange;
+            this.prefix = prefix;
+            this.options = options;
+            this.selectedIndex = initialIndex;
+            this.onChange = onChange;
         }
 
         @Override
         public void onPress() {
             if (!this.isOpen) {
-                if (countryDropdown != null && countryDropdown != this) countryDropdown.isOpen = false;
-                if (genreDropdown != null && genreDropdown != this) genreDropdown.isOpen = false;
+                if (countryDropdown != null && countryDropdown != this)
+                    countryDropdown.isOpen = false;
+                if (genreDropdown != null && genreDropdown != this)
+                    genreDropdown.isOpen = false;
             }
             this.isOpen = !this.isOpen;
         }
 
-        @Override protected void updateWidgetNarration(NarrationElementOutput narrationElementOutput) {}
-        public FilterOption getSelected() { return options[selectedIndex]; }
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput narrationElementOutput) {
+        }
+
+        public FilterOption getSelected() {
+            return options[selectedIndex];
+        }
 
         public void renderPopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-            if (!isOpen) return;
+            if (!isOpen)
+                return;
             int itemHeight = 15;
             int popupHeight = options.length * itemHeight;
             guiGraphics.pose().pushPose();
@@ -275,33 +362,44 @@ public class RadioScreen extends Screen {
 
             guiGraphics.fill(getX(), getY() + height, getX() + width, getY() + height + popupHeight, 0xEE000000);
             guiGraphics.fill(getX(), getY() + height, getX() + width, getY() + height + 1, 0xFF555555);
-            guiGraphics.fill(getX(), getY() + height + popupHeight - 1, getX() + width, getY() + height + popupHeight, 0xFF555555);
+            guiGraphics.fill(getX(), getY() + height + popupHeight - 1, getX() + width, getY() + height + popupHeight,
+                    0xFF555555);
             guiGraphics.fill(getX(), getY() + height, getX() + 1, getY() + height + popupHeight, 0xFF555555);
-            guiGraphics.fill(getX() + width - 1, getY() + height, getX() + width, getY() + height + popupHeight, 0xFF555555);
+            guiGraphics.fill(getX() + width - 1, getY() + height, getX() + width, getY() + height + popupHeight,
+                    0xFF555555);
 
             for (int i = 0; i < options.length; i++) {
                 int itemY = getY() + height + (i * itemHeight);
-                boolean isHovered = mouseX >= getX() && mouseX <= getX() + width && mouseY >= itemY && mouseY < itemY + itemHeight;
-                if (isHovered) guiGraphics.fill(getX() + 1, itemY, getX() + width - 1, itemY + itemHeight, 0xFF555555);
+                boolean isHovered = mouseX >= getX() && mouseX <= getX() + width && mouseY >= itemY
+                        && mouseY < itemY + itemHeight;
+                if (isHovered)
+                    guiGraphics.fill(getX() + 1, itemY, getX() + width - 1, itemY + itemHeight, 0xFF555555);
                 int textColor = (i == selectedIndex) ? 0xFFFFFF00 : (isHovered ? 0xFFFFFFFF : 0xFFAAAAAA);
-                guiGraphics.drawString(Minecraft.getInstance().font, options[i].name(), getX() + 5, itemY + 4, textColor, false);
+                guiGraphics.drawString(Minecraft.getInstance().font, options[i].name(), getX() + 5, itemY + 4,
+                        textColor, false);
             }
             guiGraphics.pose().popPose();
         }
 
         public boolean handlePopupClick(double mouseX, double mouseY, int button) {
-            if (!isOpen || button != 0) return false;
+            if (!isOpen || button != 0)
+                return false;
             int popupHeight = options.length * 15;
-            if (mouseX >= getX() && mouseX <= getX() + width && mouseY >= getY() + height && mouseY < getY() + height + popupHeight) {
+            if (mouseX >= getX() && mouseX <= getX() + width && mouseY >= getY() + height
+                    && mouseY < getY() + height + popupHeight) {
                 int clickedIndex = (int) ((mouseY - (getY() + height)) / 15);
                 if (clickedIndex >= 0 && clickedIndex < options.length) {
                     selectedIndex = clickedIndex;
                     this.setMessage(Component.literal(prefix + options[selectedIndex].name() + " ▼"));
-                    isOpen = false; onChange.run(); return true;
+                    isOpen = false;
+                    onChange.run();
+                    return true;
                 }
             }
-            if (mouseX >= getX() && mouseX <= getX() + width && mouseY >= getY() && mouseY < getY() + height) return false;
-            isOpen = false; return true;
+            if (mouseX >= getX() && mouseX <= getX() + width && mouseY >= getY() && mouseY < getY() + height)
+                return false;
+            isOpen = false;
+            return true;
         }
     }
 
@@ -310,47 +408,75 @@ public class RadioScreen extends Screen {
             super(mc, width, height, y, itemHeight);
         }
 
-        @Override public int getRowWidth() { return 310; }
-        public void clearStations() { super.clearEntries(); }
-        public void addStation(String name, String url, String favicon) { this.addEntry(new StationEntry(name, url, favicon)); }
+        @Override
+        public int getRowWidth() {
+            return 310;
+        }
+
+        public void clearStations() {
+            super.clearEntries();
+        }
+
+        public void addStation(String name, String url, String favicon) {
+            this.addEntry(new StationEntry(name, url, favicon));
+        }
 
         private class StationEntry extends ObjectSelectionList.Entry<StationEntry> {
-            final String name; final String url; final String favicon;
+            final String name;
+            final String url;
+            final String favicon;
 
-            StationEntry(String name, String url, String favicon) { this.name = name; this.url = url; this.favicon = favicon; }
+            StationEntry(String name, String url, String favicon) {
+                this.name = name;
+                this.url = url;
+                this.favicon = favicon;
+            }
 
             @Override
-            public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean isHovered, float partialTick) {
-                if (isHovered && !this.url.isEmpty()) guiGraphics.fill(left, top, left + width, top + height, 0x40FFFFFF);
-                else if (StationListWidget.this.getSelected() == this) guiGraphics.fill(left, top, left + width, top + height, 0x60808080);
+            public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX,
+                               int mouseY, boolean isHovered, float partialTick) {
+                if (isHovered && !this.url.isEmpty())
+                    guiGraphics.fill(left, top, left + width, top + height, 0x40FFFFFF);
+                else if (StationListWidget.this.getSelected() == this)
+                    guiGraphics.fill(left, top, left + width, top + height, 0x60808080);
 
                 int textOffset = 5;
                 if (!this.url.isEmpty()) {
                     boolean isFav = RadioScreen.this.modClient.isFavorite(this.url);
-                    boolean isStarHovered = mouseX >= left && mouseX <= left + 15 && mouseY >= top && mouseY <= top + height;
+                    boolean isStarHovered = mouseX >= left && mouseX <= left + 15 && mouseY >= top
+                            && mouseY <= top + height;
                     String star = isFav ? "§e★" : (isStarHovered ? "§f☆" : "§8☆");
                     guiGraphics.drawString(Minecraft.getInstance().font, star, left + 5, top + 5, 0xFFFFFF, false);
 
                     if (this.favicon != null && !this.favicon.isEmpty()) {
                         ResourceLocation icon = RadioModClient.getIcon(this.favicon);
-                        if (icon != null) guiGraphics.blit(RenderType::guiTextured, icon, left + 20, top + 2, 0.0F, 0.0F, 20, 20, 20, 20);
-                        else guiGraphics.blit(RenderType::guiTextured, RadioModClient.FALLBACK_ICON, left + 20, top + 2, 0.0F, 0.0F, 20, 20, 20, 20);
+                        if (icon != null)
+                            guiGraphics.blit(RenderType::guiTextured, icon, left + 20, top + 2, 0.0F, 0.0F, 20, 20, 20,
+                                    20);
+                        else
+                            guiGraphics.blit(RenderType::guiTextured, RadioModClient.FALLBACK_ICON, left + 20, top + 2,
+                                    0.0F, 0.0F, 20, 20, 20, 20);
                     } else {
-                        guiGraphics.blit(RenderType::guiTextured, RadioModClient.FALLBACK_ICON, left + 20, top + 2, 0.0F, 0.0F, 20, 20, 20, 20);
+                        guiGraphics.blit(RenderType::guiTextured, RadioModClient.FALLBACK_ICON, left + 20, top + 2,
+                                0.0F, 0.0F, 20, 20, 20, 20);
                     }
                     textOffset = 45;
                 }
 
                 int textColor = isHovered && !this.url.isEmpty() ? 0xFFFF55 : 0xFFFFFF;
-                drawMarqueeText(guiGraphics, this.name, left + textOffset, top + 5, width - textOffset - 15, textColor, isHovered);
+                drawMarqueeText(guiGraphics, this.name, left + textOffset, top + 5, width - textOffset - 15, textColor,
+                        isHovered);
             }
 
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                if (this.url.isEmpty()) return false;
-                if (mouseX >= StationListWidget.this.getRowLeft() && mouseX <= StationListWidget.this.getRowLeft() + 15) {
+                if (this.url.isEmpty())
+                    return false;
+                if (mouseX >= StationListWidget.this.getRowLeft()
+                        && mouseX <= StationListWidget.this.getRowLeft() + 15) {
                     RadioScreen.this.modClient.toggleFavorite(this.name, this.url, this.favicon);
-                    if (RadioScreen.this.showFavoritesMode) RadioScreen.this.loadFavorites();
+                    if (RadioScreen.this.showFavoritesMode)
+                        RadioScreen.this.loadFavorites();
                     return true;
                 }
                 if (button == 0) {
@@ -361,15 +487,36 @@ public class RadioScreen extends Screen {
                 return false;
             }
 
-            @Override public Component getNarration() { return Component.literal(this.name); }
+            @Override
+            public Component getNarration() {
+                return Component.literal(this.name);
+            }
         }
     }
 
     private class VolumeSlider extends AbstractSliderButton {
         public VolumeSlider(int x, int y, int width, int height, Component title, double value) {
-            super(x, y, width, height, title, value); this.updateMessage();
+            super(x, y, width, height, title, value);
+            this.updateMessage();
         }
-        @Override protected void updateMessage() { this.setMessage(Component.literal(RadioModClient.t("Głośność: ", "Volume: ") + Math.round(this.value * 100.0) + "%")); }
-        @Override protected void applyValue() { modClient.setVolume((float) this.value); }
+
+        @Override
+        protected void updateMessage() {
+            this.setMessage(Component
+                    .literal(RadioModClient.t("Głośność: ", "Volume: ") + Math.round(this.value * 100.0) + "%"));
+        }
+
+        @Override
+        protected void applyValue() {
+            modClient.setVolume((float) this.value);
+        }
+
+        // POPRAWKA: Zapisuje config dopiero po zwolnieniu suwaka, nie przy każdym
+        // mikroruchu
+        @Override
+        public void onRelease(double mouseX, double mouseY) {
+            super.onRelease(mouseX, mouseY);
+            modClient.saveConfig();
+        }
     }
 }

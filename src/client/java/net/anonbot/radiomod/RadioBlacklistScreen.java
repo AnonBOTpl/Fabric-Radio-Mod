@@ -26,12 +26,14 @@ public class RadioBlacklistScreen extends Screen {
         super.init();
         int centerX = this.width / 2;
 
-        this.phraseBox = new EditBox(this.font, centerX - 150, 30, 200, 20, RadioModClient.tc("Zablokuj słowo...", "Block phrase..."));
+        this.phraseBox = new EditBox(this.font, centerX - 150, 30, 200, 20,
+                RadioModClient.tc("Zablokuj słowo...", "Block phrase..."));
+        this.phraseBox.setMaxLength(50); // POPRAWKA: Limit długości frazy
         this.addRenderableWidget(this.phraseBox);
 
         this.addRenderableWidget(Button.builder(RadioModClient.tc("Dodaj", "Add"), button -> {
             String phrase = this.phraseBox.getValue().trim();
-            if (!phrase.isEmpty() && !modClient.getBlacklist().contains(phrase)) {
+            if (!phrase.isEmpty() && phrase.length() <= 50 && !modClient.getBlacklist().contains(phrase)) {
                 modClient.getBlacklist().add(phrase);
                 modClient.saveConfig();
                 this.phraseBox.setValue("");
@@ -44,13 +46,15 @@ public class RadioBlacklistScreen extends Screen {
         refreshList();
 
         this.addRenderableWidget(Button.builder(RadioModClient.tc("Wróć do Ustawień", "Back to Settings"), button -> {
-            if (this.minecraft != null) this.minecraft.setScreen(parentScreen);
+            if (this.minecraft != null)
+                this.minecraft.setScreen(parentScreen);
         }).bounds(centerX - 100, this.height - 30, 200, 20).build());
     }
 
     private void refreshList() {
         listWidget.clearPhrases();
-        for (String phrase : modClient.getBlacklist()) listWidget.addPhrase(phrase);
+        for (String phrase : modClient.getBlacklist())
+            listWidget.addPhrase(phrase);
     }
 
     @Override
@@ -60,26 +64,48 @@ public class RadioBlacklistScreen extends Screen {
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
     }
 
-    @Override public boolean isPauseScreen() { return false; }
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
 
     private class BlacklistWidget extends ObjectSelectionList<BlacklistEntry> {
-        public BlacklistWidget(Minecraft mc, int width, int height, int y, int itemHeight) { super(mc, width, height, y, itemHeight); }
-        @Override public int getRowWidth() { return 300; }
-        public void clearPhrases() { this.clearEntries(); }
-        public void addPhrase(String phrase) { this.addEntry(new BlacklistEntry(phrase)); }
+        public BlacklistWidget(Minecraft mc, int width, int height, int y, int itemHeight) {
+            super(mc, width, height, y, itemHeight);
+        }
+
+        @Override
+        public int getRowWidth() {
+            return 300;
+        }
+
+        public void clearPhrases() {
+            this.clearEntries();
+        }
+
+        public void addPhrase(String phrase) {
+            this.addEntry(new BlacklistEntry(phrase));
+        }
     }
 
     private class BlacklistEntry extends ObjectSelectionList.Entry<BlacklistEntry> {
         final String phrase;
-        BlacklistEntry(String phrase) { this.phrase = phrase; }
+
+        BlacklistEntry(String phrase) {
+            this.phrase = phrase;
+        }
 
         @Override
-        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean isHovered, float partialTick) {
+        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX,
+                int mouseY, boolean isHovered, float partialTick) {
             if (isHovered) {
                 guiGraphics.fill(left, top, left + width, top + height, 0x40FF5555);
-                guiGraphics.drawString(Minecraft.getInstance().font, RadioModClient.t("§c[Usuń]", "§c[Remove]"), left + width - 50, top + 5, 0xFFFFFF, false);
+                guiGraphics.drawString(Minecraft.getInstance().font, RadioModClient.t("§c[Usuń]", "§c[Remove]"),
+                        left + width - 50, top + 5, 0xFFFFFF, false);
             }
-            guiGraphics.drawString(Minecraft.getInstance().font, RadioModClient.t("Zablokowana fraza: §e", "Blocked phrase: §e") + this.phrase, left + 5, top + 5, 0xFFFFFF, false);
+            guiGraphics.drawString(Minecraft.getInstance().font,
+                    RadioModClient.t("Zablokowana fraza: §e", "Blocked phrase: §e") + this.phrase, left + 5, top + 5,
+                    0xFFFFFF, false);
         }
 
         @Override
@@ -92,6 +118,10 @@ public class RadioBlacklistScreen extends Screen {
             }
             return false;
         }
-        @Override public Component getNarration() { return Component.literal(this.phrase); }
+
+        @Override
+        public Component getNarration() {
+            return Component.literal(this.phrase);
+        }
     }
 }

@@ -6,7 +6,12 @@ import com.terraformersmc.modmenu.api.ModMenuApi;
 public class RadioModMenuApi implements ModMenuApi {
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        // Zwracamy nasze okienko ustawień, podając ModClienta oraz ekran-rodzica (żeby wiedział gdzie wrócić)
-        return parent -> new RadioSettingsScreen(RadioModClient.getInstance(), parent);
+        // POPRAWKA: null-check gdy mod nie zainicjalizował się poprawnie
+        return parent -> {
+            RadioModClient instance = RadioModClient.getInstance();
+            if (instance == null)
+                return null;
+            return new RadioSettingsScreen(instance, parent);
+        };
     }
 }
