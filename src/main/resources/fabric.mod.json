@@ -1,9 +1,9 @@
 {
 	"schemaVersion": 1,
 	"id": "radio-mod",
-	"version": "1.0.0",
+	"version": "1.2.0",
 	"name": "Radio Mod",
-	"description": "A fully-featured internet radio mod with a built-in player, live station searching, metadata toasts, and favorites system.",
+	"description": "A fully-featured internet radio mod with album art, song history, favorites export, and customizable toasts.",
 	"authors": [
 		"AnonBOT"
 	],
