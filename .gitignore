@@ -2,6 +2,7 @@
 .gradle/
 build/
 out/
+anon-chat-mod/
 
 # IntelliJ IDEA
 .idea/
@@ -35,3 +36,12 @@ Thumbs.db
 # Logs
 logs/
 *.log
+TASK-RadioPlayer-Port-26x.md
+
+# Port builds (mc-26.1.2 / mc-26.2)
+mc-26.1.2/.gradle/
+mc-26.1.2/build/
+mc-26.1.2/fabric.mod.json.backup
+mc-26.2/.gradle/
+mc-26.2/build/
+mc-26.2/fabric.mod.json.backup

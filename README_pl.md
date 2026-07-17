@@ -1,6 +1,6 @@
 # 📻 Fabric Radio Mod
 
-W pełni funkcjonalny, kliencki mod dodający radio internetowe do Minecraft Fabric (1.21.4). Słuchaj tysięcy prawdziwych stacji radiowych bezpośrednio w grze, bez użycia zewnętrznych programów!
+W pełni funkcjonalny, kliencki mod dodający radio internetowe do Minecraft Fabric (1.21.4 / 26.1.2 / 26.2). Słuchaj tysięcy prawdziwych stacji radiowych bezpośrednio w grze, bez użycia zewnętrznych programów!
 
 ## ✨ Funkcje
 * **Wyszukiwarka na żywo:** Zasilana darmowym API *Radio Browser*, dająca dostęp do stacji z całego świata.
@@ -15,16 +15,27 @@ W pełni funkcjonalny, kliencki mod dodający radio internetowe do Minecraft Fab
 
 ## ⚙️ Instalacja i Wymagania
 Jest to modyfikacja działająca **tylko u klienta**. Nie musisz instalować jej na serwerze!
-1. Zainstaluj [Fabric Loader](https://fabricmc.net/).
-2. Pobierz i wrzuć plik `radio-mod-1.2.0.jar` do folderu `.minecraft/mods`.
-3. **Wymagane:** [Fabric API](https://modrinth.com/mod/fabric-api)
-4. **Zalecane:** [ModMenu](https://modrinth.com/mod/modmenu) (do otwierania ustawień).
+1. Zainstaluj [Fabric Loader](https://fabricmc.net/) dla swojej wersji Minecraft.
+2. Pobierz odpowiedni plik `.jar` dla swojej wersji:
+   - `radio-mod-26.1.2-1.3.0.jar` dla Minecraft 26.1.2
+   - `radio-mod-26.2-1.3.0.jar` dla Minecraft 26.2
+   - `radio-mod-1.2.0.jar` dla Minecraft 1.21.4
+3. Wrzuć plik jar do folderu `.minecraft/mods`.
+4. **Wymagane:** [Fabric API](https://modrinth.com/mod/fabric-api)
+5. **Zalecane:** [ModMenu](https://modrinth.com/mod/modmenu) (do otwierania ustawień).
 
 ## 🎮 Sterowanie
 * Naciśnij **`R`** (Domyślnie) w grze, aby otworzyć główne Menu Radia.
 * Użyj suwaka w menu, aby płynnie kontrolować głośność, niezależnie od dźwięków gry.
 
 ## 📝 Changelog
+
+### v1.3.0
+* **NOWOŚĆ:** Port do Minecraft 26.1.2 i 26.2 (dwie wersje)
+* **NOWOŚĆ:** Płynne przewijanie marquee z przycinaniem (scissor)
+* **POPRAWA:** Adaptacja do API 26.x (GuiGraphicsExtractor, ActiveTextCollector)
+* **POPRAWKA:** Tekst na liście stacji, w toastach i okładki działają poprawnie na 26.x
+* **POPRAWKA:** Usunięto martwy kod
 
 ### v1.2.0
 * **NOWOŚĆ:** Automatyczne pobieranie okładek albumów z iTunes API — widoczne w toaście i w menu

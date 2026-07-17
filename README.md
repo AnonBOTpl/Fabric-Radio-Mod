@@ -1,6 +1,6 @@
 # 📻 Fabric Radio Mod
 
-A fully-featured, client-side Internet Radio mod for Minecraft Fabric (1.21.4). Listen to thousands of real-world radio stations directly in your game without any external software!
+A fully-featured, client-side Internet Radio mod for Minecraft Fabric (1.21.4 / 26.1.2 / 26.2). Listen to thousands of real-world radio stations directly in your game without any external software!
 
 <img width="841" height="999" alt="{EBCF9EDE-35F3-4717-9DCC-9F7A6F8553FB}" src="https://github.com/user-attachments/assets/b6826517-2af6-488a-a58d-c325c25270c8" />
 
@@ -21,10 +21,14 @@ A fully-featured, client-side Internet Radio mod for Minecraft Fabric (1.21.4). 
 
 ## ⚙️ Installation & Requirements
 This is a **Client-Side only** mod. You do not need to install it on your server.
-1. Install [Fabric Loader](https://fabricmc.net/).
-2. Download and drop the `radio-mod-1.2.0.jar` into your `.minecraft/mods` folder.
-3. **Required:** [Fabric API](https://modrinth.com/mod/fabric-api)
-4. **Recommended:** [ModMenu](https://modrinth.com/mod/modmenu) (to access the settings screen).
+1. Install [Fabric Loader](https://fabricmc.net/) for your Minecraft version.
+2. Download the correct `.jar` for your version:
+   - `radio-mod-26.1.2-1.3.0.jar` for Minecraft 26.1.2
+   - `radio-mod-26.2-1.3.0.jar` for Minecraft 26.2
+   - `radio-mod-1.2.0.jar` for Minecraft 1.21.4
+3. Drop the jar into your `.minecraft/mods` folder.
+4. **Required:** [Fabric API](https://modrinth.com/mod/fabric-api)
+5. **Recommended:** [ModMenu](https://modrinth.com/mod/modmenu) (to access the settings screen).
 
 ## 🎮 Controls
 * Press **`R`** (Default) in-game to open the Main Radio Menu.
@@ -36,6 +40,13 @@ The mod automatically adapts to your Minecraft language settings!
 * Polish (Polski) - [CZYTAJ PO POLSKU (README_pl.md)](README_pl.md)
 
 ## 📝 Changelog
+
+### v1.3.0
+* **NEW:** Ported to Minecraft 26.1.2 and 26.2 (dual build)
+* **NEW:** Smooth marquee scrolling with proper clipping
+* **IMPROVED:** Adapted to 26.x rendering API (GuiGraphicsExtractor, ActiveTextCollector)
+* **FIX:** Station list text, toast text, and album art now render correctly on 26.x
+* **FIX:** Removed dead code
 
 ### v1.2.0
 * **NEW:** Album art fetched automatically from iTunes API — displayed in toast and main menu
