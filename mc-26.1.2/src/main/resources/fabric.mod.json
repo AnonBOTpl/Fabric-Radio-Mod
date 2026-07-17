@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "radio-mod",
+  "version": "${version}",
+  "name": "Radio Mod",
+  "description": "A fully-featured internet radio mod with album art, song history, favorites export, and customizable toasts.",
+  "authors": [
+    "AnonBOT"
+  ],
+  "contact": {
+    "homepage": "https://anonbotpl.github.io/",
+    "sources": "https://github.com/AnonBOTpl/Fabric-Radio-Mod"
+  },
+  "license": "MIT",
+  "icon": "assets/radio-mod/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.anonbot.radiomod.RadioModClient"
+    ],
+    "modmenu": [
+      "net.anonbot.radiomod.RadioModMenuApi"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": ">=0.154.2+26.1.2",
+    "minecraft": ">=26.1.2 <26.2",
+    "java": ">=25"
+  }
+}

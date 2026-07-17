@@ -1,0 +1,93 @@
+plugins {
+    id "net.fabricmc.fabric-loom" version "${loom_version}"
+    id "maven-publish"
+}
+
+base {
+    archivesName = "radio-mod-26.2"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+    maven { url "https://maven.fabricmc.net/" }
+    maven {
+        name = "Terraformers"
+        url = "https://maven.terraformersmc.com/"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    mavenCentral()
+}
+
+loom {
+    // For 26.x the game is unobfuscated — no remapping is performed.
+    // Client-only mod — no split source sets needed.
+}
+
+
+dependencies {
+    // Minecraft — unobfuscated in 26.x
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+
+    // Fabric Loader — standard configuration (no modImplementation)
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+
+    // Fabric API
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    // ModMenu (z Modrinth Maven)
+    implementation "maven.modrinth:modmenu:${modmenu_version}"
+
+    // Audio libraries — pure Java, no MC dependency
+    implementation 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    include 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+
+    implementation 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+    include 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+
+    implementation 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
+    include 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release = 25
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${base.archivesName}" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+}
