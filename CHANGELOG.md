@@ -2,9 +2,9 @@
 
 ## v1.3.0 (2026-07-18)
 
-### ✨ Port to Minecraft 26.x (1.21.5+)
-- **NEW:** Ported to **Minecraft 26.1.2** (1.21.5 snapshots)
-- **NEW:** Ported to **Minecraft 26.2** (latest 1.21.5 snapshots)
+### ✨ Port to Minecraft 26.x
+- **NEW:** Ported to **Minecraft 26.1.2**
+- **NEW:** Ported to **Minecraft 26.2**
 - Dual build system: `mc-26.1.2/` and `mc-26.2/` folders
 - Fully adapted to the new 26.x rendering API (`GuiGraphicsExtractor`, `ActiveTextCollector`, `RenderPipelines`, etc.)
 
