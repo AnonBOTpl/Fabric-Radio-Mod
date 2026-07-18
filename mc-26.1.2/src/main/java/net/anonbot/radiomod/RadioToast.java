@@ -3,7 +3,6 @@ package net.anonbot.radiomod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.TextAlignment;
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastManager;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -13,10 +12,10 @@ import org.lwjgl.glfw.GLFW;
 
 public class RadioToast implements Toast {
 
-    // Rozmiary: 0=small(160x32,icon20), 1=medium(190x46,icon36), 2=large(220x60,icon50)
-    private static final int[] WIDTHS  = {160, 190, 220};
-    private static final int[] HEIGHTS = { 32,  46,  60};
-    private static final int[] ICONS   = { 20,  36,  50};
+    // Rozmiary: 0=small(200x32,icon20), 1=medium(230x46,icon36), 2=large(260x60,icon50), 3=XL(290x60,icon50)
+    private static final int[] WIDTHS  = {200, 230, 260, 290};
+    private static final int[] HEIGHTS = { 32,  46,  60,  60};
+    private static final int[] ICONS   = { 20,  36,  50,  50};
 
     private final String stationName;
     private final String songName;
@@ -34,7 +33,7 @@ public class RadioToast implements Toast {
         this.songName = songName;
         this.faviconUrl = faviconUrl;
         this.modClient = modClient;
-        this.size = Math.max(0, Math.min(2, size));
+        this.size = Math.max(0, Math.min(3, size));
         this.timeLeftMs = durationSeconds * 1000L;
         this.lastRenderTime = -1;
     }
@@ -67,9 +66,9 @@ public class RadioToast implements Toast {
         double mouseX = mc.mouseHandler.xpos() * window.getGuiScaledWidth() / window.getScreenWidth();
         double mouseY = mc.mouseHandler.ypos() * window.getGuiScaledHeight() / window.getScreenHeight();
 
-        var matrix = graphics.pose();
-        float toastX = 0;
-        float toastY = 0;
+        var pose = graphics.pose();
+        float toastX = pose.m20();
+        float toastY = pose.m21();
 
         boolean isHovered = mouseX >= toastX && mouseX <= toastX + W
                 && mouseY >= toastY && mouseY <= toastY + H;
@@ -111,15 +110,9 @@ public class RadioToast implements Toast {
             if (textWidth <= maxTextW) {
                 collector.accept(textX, songY, Component.literal("\u00a7f" + this.songName));
             } else {
-                double speed = 0.04;
-                int overflow = textWidth - maxTextW;
-                int totalScroll = overflow + 50;
-                int offset = (int) ((now * speed) % (totalScroll * 2));
-                int scrollX = offset > totalScroll ? (totalScroll * 2) - offset : offset;
-                scrollX = Math.max(0, Math.min(scrollX, overflow));
-                // Uzywamy accept z TextAlignment i Parameters.withScissor
-                var params = collector.defaultParameters().withScissor(textX, songY, textX + maxTextW, songY + font.lineHeight);
-                collector.accept(TextAlignment.LEFT, textX - scrollX, songY, params, Component.literal("\u00a7f" + this.songName));
+                // Gdy tekst za dlugi - przycinamy z ellipsis (zamiast scrollowania ktore w toast nie dziala)
+                String cut = font.plainSubstrByWidth(this.songName, maxTextW - font.width("...")) + "...";
+                collector.accept(textX, songY, Component.literal("\u00a7f" + cut));
             }
         }
 

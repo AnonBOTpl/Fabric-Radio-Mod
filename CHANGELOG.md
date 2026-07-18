@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.3.1 (2026-07-18)
+
+### 🐛 Bug Fixes
+- **FIX:** Action bar messages now properly display on the HUD overlay instead of chat
+  - 26.1.2: `Gui.setOverlayMessage()`
+  - 26.2: `Gui.hud.setOverlayMessage()`
+- **FIX:** Toast block button (⛔) now works correctly — fixed toast coordinate detection (was hardcoded to 0,0, now reads from `Matrix3x2fStack.m20/m21`)
+- **FIX:** Icon cache no longer permanently blocks retries after transient network errors — failed URLs are retried with cooldown (3 attempts, 60s between retries, 5min cooldown after max)
+- **FIX:** After all reconnect attempts fail, mod now cleans up station state and shows "Lost connection" message on action bar (no more phantom "playing" state)
+- **FIX:** Search results no longer have race conditions — `AtomicInteger` generation token ensures stale responses don't overwrite newer searches
+
+### 🔄 Changes
+- **CHANGE:** Toast song text rendering changed from marquee scrolling to static clipped text with ellipsis — marquee (`TextAlignment` + `withScissor`) doesn't work reliably in Toast `extractRenderState` on 26.x due to batched rendering architecture
+- **CHANGE:** All toast sizes widened by +40px to show more text — Small 160→200, Medium 190→230, Large 220→260, XL 260→290 (new 4th option)
+- **FIX:** Settings screen button overlap — Export/Import Favorites moved to separate row (cy+70), Save & Return to cy+95; 4 size buttons now evenly spaced at 72px each (previously 3×96px)
+
+### ✨ New Features
+- **NEW:** Auto-reconnect — when the stream disconnects, the mod automatically retries (3 attempts: 2s, 5s, 15s backoff). Toggle in settings (`Auto reconnect: ON/OFF`)
+
+### 🔧 Technical Changes
+- **NEW:** Thread pool (`RADIO_EXECUTOR`) — replaces `new Thread()` and `CompletableFuture.runAsync()` with a shared `Executors.newCachedThreadPool()`
+- **NEW:** Shared `HttpClient` pool (`HTTP_CLIENT`) — single `HttpClient` instance reused across all requests (faster searches, keep-alive connections)
+
+---
+
 ## v1.3.0 (2026-07-18)
 
 ### ✨ Port to Minecraft 26.x

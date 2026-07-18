@@ -56,10 +56,11 @@ public class RadioSettingsScreen extends Screen {
         String[] sizeLabels = {
                 RadioModClient.t("Maly", "Small"),
                 RadioModClient.t("Sredni", "Medium"),
-                RadioModClient.t("Duzy", "Large")
+                RadioModClient.t("Duzy", "Large"),
+                "XL"
         };
-        int btnW = 96;
-        for (int i = 0; i < 3; i++) {
+        int btnW = 72;
+        for (int i = 0; i < 4; i++) {
             final int idx = i;
             boolean selected = modClient.getToastSize() == i;
             String label = (selected ? "\u00a7e> " : "") + sizeLabels[i] + (selected ? " <\u00a7r" : "");
@@ -69,28 +70,35 @@ public class RadioSettingsScreen extends Screen {
                             : (i == 0 ? RadioModClient.t("Rozmiar: ", "Size: ") + label : label)),
                     b -> { modClient.setToastSize(idx);
                         if (this.minecraft != null) this.minecraft.setScreen(new RadioSettingsScreen(modClient, parentScreen)); }
-            ).bounds(cx - 150 + i * (btnW + 3), cy - 5, btnW, 20).build());
+            ).bounds(cx - 150 + i * (btnW + 4), cy - 5, btnW, 20).build());
         }
+
+        this.addRenderableWidget(Button.builder(
+                Component.literal(RadioModClient.t("Automatyczne ponowne łączenie: ", "Auto reconnect: ")
+                        + (modClient.isAutoReconnect() ? on : off)),
+                b -> { modClient.setAutoReconnect(!modClient.isAutoReconnect());
+                    if (this.minecraft != null) this.minecraft.setScreen(new RadioSettingsScreen(modClient, parentScreen)); }
+        ).bounds(cx - 150, cy + 20, 300, 20).build());
 
         this.addRenderableWidget(Button.builder(
                 RadioModClient.tc("\u2699 Edytuj Czarna Liste Powiadomien", "\u2699 Edit Notification Blacklist"),
                 b -> { if (this.minecraft != null) this.minecraft.setScreen(new RadioBlacklistScreen(modClient, this)); }
-        ).bounds(cx - 150, cy + 20, 300, 20).build());
+        ).bounds(cx - 150, cy + 45, 300, 20).build());
 
         this.addRenderableWidget(Button.builder(
                 RadioModClient.tc("\u2B06 Eksportuj Ulubione", "\u2B06 Export Favorites"),
                 b -> exportFavorites()
-        ).bounds(cx - 150, cy + 45, 145, 20).build());
+        ).bounds(cx - 150, cy + 70, 145, 20).build());
 
         this.addRenderableWidget(Button.builder(
                 RadioModClient.tc("\u2B07 Importuj Ulubione", "\u2B07 Import Favorites"),
                 b -> importFavorites()
-        ).bounds(cx + 5, cy + 45, 145, 20).build());
+        ).bounds(cx + 5, cy + 70, 145, 20).build());
 
         this.addRenderableWidget(Button.builder(
                 RadioModClient.tc("Zapisz i Wroc", "Save & Return"),
                 b -> { if (this.minecraft != null) this.minecraft.setScreen(parentScreen); }
-        ).bounds(cx - 100, cy + 75, 200, 20).build());
+        ).bounds(cx - 100, cy + 95, 200, 20).build());
     }
 
     private void exportFavorites() {

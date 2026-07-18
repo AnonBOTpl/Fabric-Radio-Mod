@@ -8,12 +8,10 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-// KeyBindingHelper removed in 26.x — using direct key mapping
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.KeyMapping.Category;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-// Category removed - KeyMapping.Category used directly
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -23,9 +21,11 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collections;
@@ -34,8 +34,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class RadioModClient implements ClientModInitializer {
 
@@ -51,13 +52,25 @@ public class RadioModClient implements ClientModInitializer {
 
     private static RadioModClient INSTANCE;
     private static KeyMapping toggleRadioKey;
-    private RadioPlayer currentPlayer = null;
 
+    // === Współdzielony pool wątków i HttpClient ===
+    private static final ExecutorService RADIO_EXECUTOR = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "RadioMod-Worker");
+        t.setDaemon(true);
+        return t;
+    });
+    public static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .executor(RADIO_EXECUTOR)
+            .build();
+
+    private RadioPlayer currentPlayer = null;
     private float globalVolume = 0.5f;
     private boolean showToast = true;
     private boolean showActionBar = true;
     private int toastDuration = 5;
-    private int toastSize = 1; // 0=small, 1=medium, 2=large
+    private int toastSize = 1;
+    private boolean autoReconnect = true;
     private final LinkedList<String> songHistory = new LinkedList<>();
     private static final int MAX_HISTORY = 20;
     private final List<String> blacklist = new ArrayList<>();
@@ -71,61 +84,93 @@ public class RadioModClient implements ClientModInitializer {
 
     public static final Identifier FALLBACK_ICON = Identifier.fromNamespaceAndPath("radio-mod", "icon.png");
 
-    // POPRAWKA NPE: ConcurrentHashMap nie przyjmuje null jako wartosci!
-    // Uzywamy Optional: empty = "brak obrazka", of(x) = "jest tekstura"
+    // === Cache ikon z obsługą retry przy przejściowych błędach ===
     private static final Map<String, Optional<Identifier>> iconCache = new ConcurrentHashMap<>();
     private static final Set<String> downloadingIcons = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final Map<String, Integer> iconFailures = new ConcurrentHashMap<>();
+    private static final Map<String, Long> iconFailureTime = new ConcurrentHashMap<>();
+    private static final int MAX_ICON_RETRIES = 3;
+    private static final long COOLDOWN_RETRY_MS = 60_000;   // 1 min między pojedynczymi próbami
+    private static final long COOLDOWN_MAXED_MS = 300_000;  // 5 min po wyczerpaniu limitu (max martwych linków)
 
     public static Identifier getIcon(String urlStr) {
         if (urlStr == null || urlStr.isEmpty()) return null;
         if (!urlStr.startsWith("http://") && !urlStr.startsWith("https://")) return null;
 
+        // 1. Permanentny cache sukcesów — raz pobrana ikona zostaje na zawsze
         Optional<Identifier> cached = iconCache.get(urlStr);
         if (cached != null) {
-            return cached.orElse(null);
+            return cached.orElse(null); // Optional.empty() = permanent failure (martwy link/zły format)
         }
 
-        if (!downloadingIcons.contains(urlStr)) {
-            downloadingIcons.add(urlStr);
-            //System.out.println("[RadioMod] Rozpoczynam pobieranie obrazka: " + urlStr);
-            CompletableFuture.runAsync(() -> {
-                try {
-                    URL url = URI.create(urlStr).toURL();
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setConnectTimeout(5000);
-                    conn.setReadTimeout(5000);
-                    conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-                    int code = conn.getResponseCode();
-                    //System.out.println("[RadioMod] HTTP " + code + " dla obrazka: " + urlStr);
-                    try (InputStream is = conn.getInputStream()) {
-                        java.awt.image.BufferedImage buffered = javax.imageio.ImageIO.read(is);
-                        if (buffered == null) {
-                            iconCache.put(urlStr, Optional.empty());
-                            System.err.println("[RadioMod] ImageIO nie rozpoznal formatu: " + urlStr);
-                            return;
-                        }
-                        int w = buffered.getWidth();
-                        int h = buffered.getHeight();
-                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                        javax.imageio.ImageIO.write(buffered, "png", baos);
-                        NativeImage image = NativeImage.read(new java.io.ByteArrayInputStream(baos.toByteArray()));
-                        Minecraft.getInstance().execute(() -> {
-                            DynamicTexture texture = new DynamicTexture(() -> "radiomod_icon", image);
-                            String safeHash = UUID.nameUUIDFromBytes(urlStr.getBytes(StandardCharsets.UTF_8))
-                                    .toString().replace("-", "");
-                            Identifier id = Identifier.fromNamespaceAndPath("radiomod", "icon_" + safeHash);
-                            Minecraft.getInstance().getTextureManager().register(id, texture);
-                            iconCache.put(urlStr, Optional.of(id));
-                            //System.out.println("[RadioMod] Obrazek zaladowany pomyslnie: " + id);
-                        });
-                    }
-                } catch (Exception e) {
-                    // POPRAWKA: Optional.empty() zamiast null - null rzucilby NPE!
-                    iconCache.put(urlStr, Optional.empty());
-                    System.err.println("[RadioMod] Blad pobierania obrazka [" + urlStr + "]: " + e.getMessage());
-                }
-            });
+        // 2. Sprawdź limity prób i cooldowny
+        Integer failCount = iconFailures.get(urlStr);
+        if (failCount != null) {
+            Long lastFail = iconFailureTime.get(urlStr);
+            long elapsed = System.currentTimeMillis() - (lastFail != null ? lastFail : 0);
+            if (failCount >= MAX_ICON_RETRIES) {
+                // Wyczerpany limit prób — dłuższy cooldown, potem reset
+                if (elapsed < COOLDOWN_MAXED_MS) return null;
+                iconFailures.remove(urlStr);
+                iconFailureTime.remove(urlStr);
+            } else {
+                // Pojedyncza próba — krótszy cooldown
+                if (elapsed < COOLDOWN_RETRY_MS) return null;
+            }
         }
+
+        // 3. Sprawdź czy już trwa pobieranie
+        if (downloadingIcons.contains(urlStr)) {
+            return null;
+        }
+
+        downloadingIcons.add(urlStr);
+        RADIO_EXECUTOR.submit(() -> {
+            try {
+                URL url = URI.create(urlStr).toURL();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                int code = conn.getResponseCode();
+                try (InputStream is = conn.getInputStream()) {
+                    java.awt.image.BufferedImage buffered = javax.imageio.ImageIO.read(is);
+                    if (buffered == null) {
+                        // ImageIO nie rozpoznało formatu — to permanentny błąd (martwy link)
+                        iconCache.put(urlStr, Optional.empty());
+                        iconFailures.remove(urlStr);
+                        iconFailureTime.remove(urlStr);
+                        downloadingIcons.remove(urlStr);
+                        System.err.println("[RadioMod] ImageIO nie rozpoznal formatu: " + urlStr);
+                        return;
+                    }
+                    int w = buffered.getWidth();
+                    int h = buffered.getHeight();
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    javax.imageio.ImageIO.write(buffered, "png", baos);
+                    NativeImage image = NativeImage.read(new java.io.ByteArrayInputStream(baos.toByteArray()));
+                    Minecraft.getInstance().execute(() -> {
+                        DynamicTexture texture = new DynamicTexture(() -> "radiomod_icon", image);
+                        String safeHash = UUID.nameUUIDFromBytes(urlStr.getBytes(StandardCharsets.UTF_8))
+                                .toString().replace("-", "");
+                        Identifier id = Identifier.fromNamespaceAndPath("radiomod", "icon_" + safeHash);
+                        Minecraft.getInstance().getTextureManager().register(id, texture);
+                        // Sukces — permanentny cache
+                        iconCache.put(urlStr, Optional.of(id));
+                        // Wyczyść failure tracking + dopiero teraz odblokuj URL
+                        iconFailures.remove(urlStr);
+                        iconFailureTime.remove(urlStr);
+                        downloadingIcons.remove(urlStr);
+                    });
+                }
+            } catch (Exception e) {
+                downloadingIcons.remove(urlStr);
+                // Przejściowa porażka — zliczamy próbę i damy retry później
+                iconFailures.merge(urlStr, 1, Integer::sum);
+                iconFailureTime.put(urlStr, System.currentTimeMillis());
+                System.err.println("[RadioMod] Blad pobierania obrazka [" + urlStr + "]: " + e.getMessage());
+            }
+        });
         return null;
     }
 
@@ -144,7 +189,6 @@ public class RadioModClient implements ClientModInitializer {
 
             String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
             String apiUrl  = "https://itunes.apple.com/search?term=" + encoded + "&media=music&limit=1";
-            //System.out.println("[RadioMod] Szukam okładki dla: \"" + query + "\"");
 
             URL url = URI.create(apiUrl).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -153,7 +197,6 @@ public class RadioModClient implements ClientModInitializer {
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
 
             int code = conn.getResponseCode();
-            //System.out.println("[RadioMod] iTunes API HTTP " + code);
 
             try (InputStream is = conn.getInputStream()) {
                 String json = new String(is.readAllBytes(), StandardCharsets.UTF_8);
@@ -161,22 +204,15 @@ public class RadioModClient implements ClientModInitializer {
                 JsonArray results = root.getAsJsonArray("results");
 
                 if (results == null || results.size() == 0) {
-                    //System.out.println("[RadioMod] iTunes: brak wynikow dla \"" + query + "\"");
                     return null;
                 }
 
                 JsonObject track = results.get(0).getAsJsonObject();
-                String trackName  = track.has("trackName")  ? track.get("trackName").getAsString()  : "?";
-                String artistName = track.has("artistName") ? track.get("artistName").getAsString() : "?";
 
                 if (track.has("artworkUrl100")) {
                     String artworkUrl = track.get("artworkUrl100").getAsString()
                             .replace("100x100bb", "600x600bb");
-                    //System.out.println("[RadioMod] Znaleziono okładke! Dopasowanie: \"" + artistName + " - " + trackName + "\"");
-                    //System.out.println("[RadioMod] URL okładki: " + artworkUrl);
                     return artworkUrl;
-                } else {
-                    //System.out.println("[RadioMod] iTunes: brak artworkUrl100 dla \"" + query + "\"");
                 }
             } finally {
                 conn.disconnect();
@@ -204,11 +240,14 @@ public class RadioModClient implements ClientModInitializer {
     public static RadioModClient getInstance() { return INSTANCE; }
     public String getLastSongName() { return lastSongName; }
 
+    public boolean isAutoReconnect() { return autoReconnect; }
+    public void setAutoReconnect(boolean v) { this.autoReconnect = v; saveConfig(); }
+
     @Override
     public void onInitializeClient() {
         loadConfig();
         toggleRadioKey = new KeyMapping(
-                "Otwórz Menu Radia", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, KeyMapping.Category.MISC);
+                "Otwórz Menu Radia", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, Category.MISC);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleRadioKey.consumeClick()) {
                 if (client.gui.screen() == null) client.setScreenAndShow(new RadioScreen(this));
@@ -234,12 +273,27 @@ public class RadioModClient implements ClientModInitializer {
         this.tickCounter = 190;
         currentPlayer = new RadioPlayer(url);
         currentPlayer.setVolume(globalVolume);
-        Thread radioThread = new Thread(currentPlayer, "RadioMod-Player");
-        radioThread.setDaemon(true);
-        radioThread.start();
+        currentPlayer.setAutoReconnect(autoReconnect);
+        final RadioPlayer capturedPlayer = currentPlayer;
+        currentPlayer.setOnDisconnected(() -> {
+            Minecraft.getInstance().execute(() -> {
+                // Sprawdź, czy to wciąż ten sam player (użytkownik mógł przełączyć stację)
+                if (currentPlayer == capturedPlayer && !capturedPlayer.isPlaying()) {
+                    currentStationUrl = "";
+                    currentStationName = "";
+                    currentStationFavicon = "";
+                    lastSongName = "";
+                    currentArtworkUrl = null;
+                    if (Minecraft.getInstance().player != null)
+                        Minecraft.getInstance().gui.hud.setOverlayMessage(
+                                tc("§cUtracono połączenie ze stacją", "§cLost connection to station"), false);
+                }
+            });
+        });
+        RADIO_EXECUTOR.submit(currentPlayer);
         if (Minecraft.getInstance().player != null)
-            Minecraft.getInstance().player.sendSystemMessage(
-                    tc("§eŁączenie z nową stacją...", "§eConnecting to new station..."));
+            Minecraft.getInstance().gui.hud.setOverlayMessage(
+                    tc("§eŁączenie z nową stacją...", "§eConnecting to new station..."), false);
     }
 
     public void stopRadio() {
@@ -249,8 +303,8 @@ public class RadioModClient implements ClientModInitializer {
             this.lastSongName = "";
             this.currentArtworkUrl = null;
             if (Minecraft.getInstance().player != null)
-                Minecraft.getInstance().player.sendSystemMessage(
-                        tc("§cRadio wyłączone", "§cRadio stopped"));
+                Minecraft.getInstance().gui.hud.setOverlayMessage(
+                        tc("§cRadio wyłączone", "§cRadio stopped"), false);
         }
     }
 
@@ -296,45 +350,37 @@ public class RadioModClient implements ClientModInitializer {
         final String stationFavicon = this.currentStationFavicon;
         final String stationName   = this.currentStationName;
         final String stationUrl    = this.currentStationUrl;
-        CompletableFuture.runAsync(() -> {
+        RADIO_EXECUTOR.submit(() -> {
             String fetched = RadioPlayer.fetchCurrentSong(stationUrl);
             if (fetched != null) {
                 String raw = fetched.trim().isEmpty() ? t("Audycja na żywo / Reklama", "Live stream / AD") : fetched.trim();
                 String newSong = formatSongTitle(raw);
                 if (!newSong.equals(lastSongName)) {
                     lastSongName = newSong;
-                    // Dodaj do historii piosenek
                     if (!newSong.equals(t("Audycja na żywo / Reklama", "Live stream / AD"))) {
-                        songHistory.remove(newSong); // unikaj duplikatow
+                        songHistory.remove(newSong);
                         songHistory.addFirst(newSong);
                         if (songHistory.size() > MAX_HISTORY) songHistory.removeLast();
                     }
-                    //System.out.println("[RadioMod] Nowa piosenka wykryta: \"" + newSong + "\"");
                     if (isBlacklisted(newSong)) {
-                        //System.out.println("[RadioMod] Piosenka na czarnej liscie, pomijam okładke.");
                         return;
                     }
                     currentArtworkUrl = null;
                     final String songForArtwork = newSong;
-                    CompletableFuture.runAsync(() -> {
+                    RADIO_EXECUTOR.submit(() -> {
                         String artworkUrl = fetchArtworkUrl(songForArtwork);
                         if (songForArtwork.equals(lastSongName)) {
                             currentArtworkUrl = artworkUrl;
                             if (artworkUrl != null) {
-                                //System.out.println("[RadioMod] Kickuje cache obrazka okładki...");
                                 getIcon(artworkUrl);
-                            } else {
-                                //System.out.println("[RadioMod] Brak okładki — uzywam favicon stacji.");
                             }
-                        } else {
-                            //System.out.println("[RadioMod] Piosenka zmienila sie podczas szukania, pomijam okładke.");
                         }
                     });
                     Minecraft.getInstance().execute(() -> {
                         if (showToast) Minecraft.getInstance().gui.toastManager().addToast(
                                 new RadioToast(stationName, newSong, toastDuration, stationFavicon, RadioModClient.this, toastSize));
                         if (showActionBar && Minecraft.getInstance().player != null)
-                            Minecraft.getInstance().player.sendSystemMessage(Component.literal("§b♪ " + newSong));
+                            Minecraft.getInstance().gui.hud.setOverlayMessage(Component.literal("§b♪ " + newSong), false);
                     });
                 }
             }
@@ -346,15 +392,28 @@ public class RadioModClient implements ClientModInitializer {
             Path p = Path.of(Minecraft.getInstance().gameDirectory.getAbsolutePath(), "config", "radiomod.json");
             Files.createDirectories(p.getParent());
             JsonObject json = new JsonObject();
-            json.addProperty("volume", globalVolume); json.addProperty("showToast", showToast);
+            json.addProperty("volume", globalVolume);
+            json.addProperty("showToast", showToast);
+            json.addProperty("showActionBar", showActionBar);
+            json.addProperty("toastDuration", toastDuration);
             json.addProperty("toastSize", toastSize);
-            json.addProperty("showActionBar", showActionBar); json.addProperty("toastDuration", toastDuration);
+            json.addProperty("autoReconnect", autoReconnect);
             JsonArray fa = new JsonArray();
-            for (FavoriteStation fs : favorites) { JsonObject o = new JsonObject(); o.addProperty("name", fs.name); o.addProperty("url", fs.url); o.addProperty("favicon", fs.favicon); fa.add(o); }
+            for (FavoriteStation fs : favorites) {
+                JsonObject o = new JsonObject();
+                o.addProperty("name", fs.name);
+                o.addProperty("url", fs.url);
+                o.addProperty("favicon", fs.favicon);
+                fa.add(o);
+            }
             json.add("favorites", fa);
-            JsonArray ba = new JsonArray(); for (String w : blacklist) ba.add(w); json.add("blacklist", ba);
+            JsonArray ba = new JsonArray();
+            for (String w : blacklist) ba.add(w);
+            json.add("blacklist", ba);
             Files.writeString(p, json.toString());
-        } catch (Exception e) { System.err.println("[RadioMod] Blad zapisu konfiguracji: " + e.getMessage()); }
+        } catch (Exception e) {
+            System.err.println("[RadioMod] Blad zapisu konfiguracji: " + e.getMessage());
+        }
     }
 
     private void loadConfig() {
@@ -367,6 +426,7 @@ public class RadioModClient implements ClientModInitializer {
                 if (json.has("showActionBar")) this.showActionBar = json.get("showActionBar").getAsBoolean();
                 if (json.has("toastDuration")) this.toastDuration = json.get("toastDuration").getAsInt();
                 if (json.has("toastSize")) this.toastSize = json.get("toastSize").getAsInt();
+                if (json.has("autoReconnect")) this.autoReconnect = json.get("autoReconnect").getAsBoolean();
                 favorites.clear();
                 if (json.has("favorites")) for (JsonElement e : json.getAsJsonArray("favorites")) {
                     JsonObject o = e.getAsJsonObject();
@@ -379,6 +439,8 @@ public class RadioModClient implements ClientModInitializer {
                 if (json.has("blacklist")) for (JsonElement e : json.getAsJsonArray("blacklist")) blacklist.add(e.getAsString());
                 else { blacklist.add("reklama"); blacklist.add("audycja na żywo"); blacklist.add("ad"); }
             }
-        } catch (Exception e) { System.err.println("[RadioMod] Blad odczytu konfiguracji: " + e.getMessage()); }
+        } catch (Exception e) {
+            System.err.println("[RadioMod] Blad odczytu konfiguracji: " + e.getMessage());
+        }
     }
 }

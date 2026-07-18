@@ -23,13 +23,13 @@ import net.minecraft.resources.Identifier;
 
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RadioScreen extends Screen {
 
@@ -43,6 +43,7 @@ public class RadioScreen extends Screen {
     private DropdownWidget genreDropdown;
 
     boolean showFavoritesMode = false;
+    private final AtomicInteger searchGeneration = new AtomicInteger(0);
 
     private record FilterOption(String name, String value) {
     }
@@ -197,6 +198,7 @@ public class RadioScreen extends Screen {
     }
 
     private void performSearch(String query) {
+        int myGen = searchGeneration.incrementAndGet();
         listWidget.clearStations();
         listWidget.addStation(RadioModClient.t("Pobieranie stacji...", "Downloading stations..."), "", "");
         CompletableFuture.runAsync(() -> {
@@ -214,19 +216,17 @@ public class RadioScreen extends Screen {
                 if (!query.trim().isEmpty())
                     apiUrl += "&name=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
-                try (HttpClient client = HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(10))
-                        .build()) {
-                    HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest request = HttpRequest.newBuilder()
                             .uri(URI.create(apiUrl))
                             .timeout(Duration.ofSeconds(10))
                             .header("User-Agent", "MinecraftRadioMod/1.0")
                             .GET()
                             .build();
-                    HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                    HttpResponse<String> response = RadioModClient.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                     JsonArray array = JsonParser.parseString(response.body()).getAsJsonArray();
 
                     Minecraft.getInstance().execute(() -> {
+                        if (myGen != searchGeneration.get()) return;
                         listWidget.clearStations();
                         if (array.isEmpty())
                             listWidget.addStation(RadioModClient.t("Brak wynikow.", "No results found."), "", "");
@@ -247,11 +247,13 @@ public class RadioScreen extends Screen {
                             }
                         }
                     });
-                }
             } catch (Exception e) {
+                System.err.println("[RadioMod] Blad wyszukiwania stacji: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+                String errType = e.getClass().getSimpleName();
                 Minecraft.getInstance().execute(() -> {
+                    if (myGen != searchGeneration.get()) return;
                     listWidget.clearStations();
-                    listWidget.addStation(RadioModClient.t("Blad internetu.", "Internet error."), "", "");
+                    listWidget.addStation(RadioModClient.t("Blad internetu: ", "Internet error: ") + errType, "", "");
                 });
             }
         });

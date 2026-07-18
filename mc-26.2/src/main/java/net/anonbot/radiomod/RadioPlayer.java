@@ -15,6 +15,8 @@ public class RadioPlayer implements Runnable {
     private SourceDataLine dataLine;
     private volatile boolean isPlaying = false;
     private float currentVolume = 0.5f;
+    private boolean autoReconnect = true;
+    private Runnable onDisconnected = null;
 
     public RadioPlayer(String streamUrl) {
         this.streamUrl = streamUrl;
@@ -24,6 +26,14 @@ public class RadioPlayer implements Runnable {
         return isPlaying;
     }
 
+    public void setAutoReconnect(boolean v) {
+        this.autoReconnect = v;
+    }
+
+    public void setOnDisconnected(Runnable r) {
+        this.onDisconnected = r;
+    }
+
     @Override
     public void run() {
         Thread.currentThread().setContextClassLoader(this.getClass().getClassLoader());
@@ -31,7 +41,6 @@ public class RadioPlayer implements Runnable {
         isPlaying = true;
         HttpURLConnection conn = null;
         try {
-            // POPRAWKA: URI.create zamiast przestarzałego new URL()
             URL url = URI.create(streamUrl).toURL();
             conn = (HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(8000);
@@ -46,7 +55,6 @@ public class RadioPlayer implements Runnable {
                     System.err.println("[RadioMod] Nieoczekiwany kod odpowiedzi: " + responseCode);
                 }
             } catch (IOException e) {
-                // POPRAWKA: Logowanie zamiast cichego ignorowania
                 System.err.println("[RadioMod] Błąd sprawdzania kodu odpowiedzi: " + e.getMessage());
             }
 
@@ -56,7 +64,6 @@ public class RadioPlayer implements Runnable {
                 AudioInputStream in = AudioSystem.getAudioInputStream(bufferedStream);
                 AudioFormat baseFormat = in.getFormat();
 
-                // POPRAWKA: Fallback dla sampleRate == -1 (NOT_SPECIFIED)
                 float sampleRate = baseFormat.getSampleRate();
                 if (sampleRate == AudioSystem.NOT_SPECIFIED || sampleRate <= 0) {
                     sampleRate = 44100;
@@ -100,11 +107,83 @@ public class RadioPlayer implements Runnable {
             }
 
         } catch (Exception e) {
-            System.err.println("[RadioMod] Strumień zakończony lub błąd: " + e.getMessage());
+            if (isPlaying && autoReconnect) {
+                System.err.println("[RadioMod] Strumień urwany, próba reconnectu: " + e.getMessage());
+                reconnectWithBackoff();
+            } else {
+                System.err.println("[RadioMod] Strumień zakończony: " + e.getMessage());
+            }
         } finally {
             isPlaying = false;
-            // POPRAWKA: Zawsze rozłącz, by zwolnić zasoby sieciowe
             if (conn != null) conn.disconnect();
+        }
+    }
+
+    private void reconnectWithBackoff() {
+        int[] delays = {2000, 5000, 15000};
+        for (int attempt = 0; attempt < delays.length && isPlaying; attempt++) {
+            try {
+                Thread.sleep(delays[attempt]);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            if (!isPlaying) break;
+            System.out.println("[RadioMod] Reconnect próba " + (attempt + 1) + "/" + delays.length + "...");
+            HttpURLConnection conn = null;
+            try {
+                URL url = URI.create(streamUrl).toURL();
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                conn.setInstanceFollowRedirects(true);
+                conn.connect();
+
+                try (InputStream rawStream = conn.getInputStream();
+                     BufferedInputStream bufferedStream = new BufferedInputStream(rawStream)) {
+
+                    AudioInputStream in = AudioSystem.getAudioInputStream(bufferedStream);
+                    AudioFormat baseFormat = in.getFormat();
+
+                    float sampleRate = baseFormat.getSampleRate();
+                    if (sampleRate == AudioSystem.NOT_SPECIFIED || sampleRate <= 0) sampleRate = 44100;
+                    int channels = baseFormat.getChannels();
+                    if (channels == AudioSystem.NOT_SPECIFIED || channels <= 0) channels = 2;
+
+                    AudioFormat decodedFormat = new AudioFormat(
+                            AudioFormat.Encoding.PCM_SIGNED,
+                            sampleRate, 16, channels, channels * 2, sampleRate, false);
+                    AudioInputStream decodedInputStream = AudioSystem.getAudioInputStream(decodedFormat, in);
+                    DataLine.Info info = new DataLine.Info(SourceDataLine.class, decodedFormat);
+
+                    dataLine = (SourceDataLine) AudioSystem.getLine(info);
+                    dataLine.open(decodedFormat);
+                    dataLine.start();
+                    updateVolumeControl();
+
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while (isPlaying && (bytesRead = decodedInputStream.read(buffer, 0, buffer.length)) != -1) {
+                        dataLine.write(buffer, 0, bytesRead);
+                    }
+                    dataLine.drain();
+                    dataLine.stop();
+                    dataLine.close();
+                    decodedInputStream.close();
+                    conn.disconnect();
+                    return; // sukces
+                }
+            } catch (Exception reconnectError) {
+                if (conn != null) conn.disconnect();
+                System.err.println("[RadioMod] Reconnect próba " + (attempt + 1) + " nieudana: " + reconnectError.getMessage());
+            }
+        }
+        if (isPlaying) {
+            System.err.println("[RadioMod] Reconnect nieudany po " + delays.length + " próbach.");
+            if (onDisconnected != null) {
+                onDisconnected.run();
+            }
         }
     }
 
